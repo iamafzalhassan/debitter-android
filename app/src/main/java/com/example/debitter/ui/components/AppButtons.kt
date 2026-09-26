@@ -1,0 +1,65 @@
+package com.example.debitter.ui.components
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.example.debitter.ui.theme.AppColors
+import com.example.debitter.ui.theme.AppSpacing
+import com.example.debitter.ui.theme.AppTextStyles
+
+@Composable
+fun PrimaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, isEnabled: Boolean = true) {
+    Button(
+        modifier = modifier.heightIn(min = AppSpacing.buttonHeight),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = AppColors.primary,
+            contentColor = AppColors.primaryOn,
+            disabledContainerColor = AppColors.surfaceSunken,
+            disabledContentColor = AppColors.textDisabled,
+        ),
+        contentPadding = PaddingValues(horizontal = AppSpacing.lg),
+        elevation = null,
+        enabled = isEnabled,
+        onClick = onClick,
+        shape = RoundedCornerShape(AppSpacing.radiusButton),
+    ) {
+        Text(maxLines = 1, style = AppTextStyles.button, text = label)
+    }
+}
+
+@Composable
+fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, isEnabled: Boolean = true) {
+    OutlinedButton(
+        modifier = modifier.heightIn(min = AppSpacing.buttonHeight),
+        border = BorderStroke(AppSpacing.hairline, if (isEnabled) AppColors.primary else AppColors.divider),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.primary, disabledContentColor = AppColors.textDisabled),
+        contentPadding = PaddingValues(horizontal = AppSpacing.lg),
+        enabled = isEnabled,
+        onClick = onClick,
+        shape = RoundedCornerShape(AppSpacing.radiusButton),
+    ) {
+        Text(maxLines = 1, style = AppTextStyles.button.copy(color = if (isEnabled) AppColors.primary else AppColors.textDisabled), text = label)
+    }
+}
+
+@Composable
+fun DangerButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, isEnabled: Boolean = true) {
+    OutlinedButton(
+        modifier = modifier.heightIn(min = AppSpacing.buttonHeight),
+        border = BorderStroke(AppSpacing.hairline, AppColors.danger),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.danger, disabledContentColor = AppColors.textDisabled),
+        contentPadding = PaddingValues(horizontal = AppSpacing.lg),
+        enabled = isEnabled,
+        onClick = onClick,
+        shape = RoundedCornerShape(AppSpacing.radiusButton),
+    ) {
+        Text(maxLines = 1, style = AppTextStyles.button.copy(color = AppColors.danger), text = label)
+    }
+}

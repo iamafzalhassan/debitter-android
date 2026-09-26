@@ -1,0 +1,25 @@
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+*.log
+
+# Local config & secrets
+local.properties
+keystore.properties
+key.properties
+*.jks
+*.keystore
+google-services.json
+.env
+
+# Claude
+CLAUDE.md

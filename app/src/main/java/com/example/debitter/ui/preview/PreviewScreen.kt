@@ -1,0 +1,161 @@
+package com.example.debitter.ui.preview
+
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import com.example.debitter.model.PrintDocument
+import com.example.debitter.pdf.PdfExporter
+import com.example.debitter.pdf.SaveLocation
+import com.example.debitter.ui.components.ActivityIndicator
+import com.example.debitter.ui.components.AppSnackbarHost
+import com.example.debitter.ui.components.AppTopBar
+import com.example.debitter.ui.components.PrimaryButton
+import com.example.debitter.ui.components.SecondaryButton
+import com.example.debitter.ui.components.rememberAppSnackbarState
+import com.example.debitter.ui.theme.AppColors
+import com.example.debitter.ui.theme.AppSpacing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private const val PREVIEW_SCALE: Int = 2
+
+private const val PREVIEW_FILE: String = "preview.pdf"
+
+@Composable
+fun PreviewScreen(onBack: () -> Unit, onSaved: (SaveLocation) -> Unit, document: PrintDocument, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val exporter = remember(context) { PdfExporter(context) }
+    val scope = rememberCoroutineScope()
+    val snackbarState = rememberAppSnackbarState()
+    val preview by produceState<PreviewDocument?>(initialValue = null, exporter, document) {
+        value = withContext(Dispatchers.IO) { renderDocument(exporter, document) }
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            PreviewActions(
+                isEnabled = preview != null,
+                onSave = {
+                    val bytes = preview?.bytes ?: return@PreviewActions
+                    scope.launch {
+                        val location = runCatching { withContext(Dispatchers.IO) { exporter.saveToDownloads(bytes, document) } }.getOrNull()
+
+                        if (location == null) {
+                            snackbarState.showError("The ${document.kind.noun} could not be saved to Downloads. Check the phone storage and try again.")
+                            return@launch
+                        }
+                        onSaved(location)
+                    }
+                },
+                onShare = {
+                    val bytes = preview?.bytes ?: return@PreviewActions
+                    scope.launch {
+                        val intent = runCatching { withContext(Dispatchers.IO) { exporter.shareIntent(bytes, document) } }.getOrNull()
+
+                        if (intent == null) {
+                            snackbarState.showError("The ${document.kind.noun} could not be prepared for sharing. Check the phone storage and try again.")
+                            return@launch
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Share ${document.kind.noun}"))
+                    }
+                },
+            )
+        },
+        containerColor = AppColors.surfaceSunken,
+        snackbarHost = { AppSnackbarHost(state = snackbarState) },
+        topBar = { AppTopBar(onBack = onBack, title = "Preview") },
+    ) { padding ->
+        val pages = preview?.pages
+
+        if (pages == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                ActivityIndicator()
+            }
+            return@Scaffold
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(AppSpacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.xl),
+        ) {
+            itemsIndexed(items = pages) { index, page ->
+                Image(
+                    modifier = Modifier.widthIn(max = AppSpacing.previewPageMaxWidth).fillMaxWidth().background(AppColors.surfaceCard),
+                    bitmap = page,
+                    contentDescription = "Page ${index + 1}",
+                    contentScale = ContentScale.FillWidth,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewActions(isEnabled: Boolean, onSave: () -> Unit, onShare: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth().background(AppColors.surfaceCard)) {
+        HorizontalDivider(color = AppColors.divider, thickness = AppSpacing.hairline)
+        Column(
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = AppSpacing.screenPadding, vertical = AppSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            PrimaryButton(modifier = Modifier.fillMaxWidth(), isEnabled = isEnabled, label = "Save", onClick = onSave)
+            SecondaryButton(modifier = Modifier.fillMaxWidth(), isEnabled = isEnabled, label = "Share", onClick = onShare)
+        }
+    }
+}
+
+private class PreviewDocument(val bytes: ByteArray, val pages: List<ImageBitmap>)
+
+private fun renderDocument(exporter: PdfExporter, document: PrintDocument): PreviewDocument {
+    val bytes = exporter.render(document)
+    val file = exporter.cacheFile(bytes, PREVIEW_FILE)
+
+    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+        PdfRenderer(descriptor).use { renderer ->
+            val pages = (0 until renderer.pageCount).map { index -> renderPage(renderer, index) }
+
+            return PreviewDocument(bytes = bytes, pages = pages)
+        }
+    }
+}
+
+private fun renderPage(renderer: PdfRenderer, index: Int): ImageBitmap {
+    renderer.openPage(index).use { page ->
+        val bitmap = Bitmap.createBitmap(page.width * PREVIEW_SCALE, page.height * PREVIEW_SCALE, Bitmap.Config.ARGB_8888)
+
+        bitmap.eraseColor(Color.WHITE)
+        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+        return bitmap.asImageBitmap()
+    }
+}
