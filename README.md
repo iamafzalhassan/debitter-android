@@ -4,6 +4,7 @@
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?logo=jetpackcompose&logoColor=white)
 ![PDF](https://img.shields.io/badge/PDF-native_Canvas-C0392B)
 ![Platform](https://img.shields.io/badge/platform-Android_8.0%2B-3DDC84?logo=android&logoColor=white)
+[![CI](https://github.com/iamafzalhassan/debitter-android/actions/workflows/ci.yml/badge.svg)](https://github.com/iamafzalhassan/debitter-android/actions/workflows/ci.yml)
 
 A native Android app, built with Kotlin and Jetpack Compose, that produces precisely aligned debit notes and container deposit refund letters for a freight forwarding and customs clearing business in Colombo. It replaces a manual Word-document workflow with a fast, form-driven flow that ends in a print-ready PDF.
 
@@ -15,17 +16,18 @@ Every piece of text on a generated document is editable in the app: the company 
 - **Charge rows** that can be added, renamed and edited freely. A row left at zero is simply omitted from the printed note.
 - **Live totals**: sub total, advance received and final total, always computed and never typed. The advance is re-validated whenever the charges change, so the total can never go negative.
 - **Container deposit refund letters** with a letterhead chosen from the customer directory, a shipping agent, and reference fields for container, BL, vessel, voyage and receipt numbers.
-- **True-to-page preview** rendered from the actual PDF, then save to `Downloads/Debitter/` or share through the system share sheet.
+- **True-to-page preview** rendered from the actual PDF, then save to `Downloads/Debitter/Debit Notes/` or `Downloads/Debitter/Refund Letters/` or share through the system share sheet.
 - **Recent documents**: every saved debit note and refund letter can be reopened, edited, re-exported or shared.
 - **Customer and shipping agent directory** managed from Settings and seeded once from presets on first install.
 - **No permissions and no network.** Everything stays on the device.
+- **English only.** The interface is in English, with no other translations.
 
 ## Architecture
 
 - **MVVM with unidirectional data flow.** `EditorViewModel` and `LetterViewModel` expose an immutable document as a `StateFlow`; screens send sealed events back through a single entry point.
 - **State survives the process.** In-progress documents are kept in `SavedStateHandle`, so rotation or backgrounding never loses a half-written note.
-- **A pure rendering layer.** `pdf/` depends only on `Canvas`, `Paint`, `PdfDocument` and `Typeface`; it imports no Compose, no ViewModel and no UI type.
-- **Layering rules.** Composables never touch presets or defaults directly, and ViewModels never import a Compose UI type or a `Context`.
+- **A pure rendering layer.** `pdf/` depends only on `Canvas`, `Paint`, `PdfDocument` and `Typeface`; it imports no Compose, no ViewModel and no UI type. The one exception is `PdfExporter`, which holds the `Context` for file IO through `MediaStore` and `FileProvider` and is not part of the layout engine.
+- **Layering rules.** Composables never touch presets or defaults directly, and `EditorViewModel` and `LetterViewModel` never import a Compose UI type or a `Context`.
 - **No code generation.** No KAPT, no KSP and no serialization plugin; JSON is written by hand with `org.json`.
 
 ## How the PDF works
@@ -41,7 +43,7 @@ Both documents are laid out by a custom engine drawn directly on `Canvas` with A
 - **Top-aligned grid cells.** A one-line value beside a wrapped one sits on the wrapped value's first line.
 - **Crisp hairlines** drawn on half-pixel-snapped coordinates.
 - **Mixed-weight wrapping.** The refund letter body wraps runs of regular and bold text, keeping a bold word and its punctuation together.
-- **Bundled SF Pro Display** typeface, resolved once and verified at load time rather than silently falling back to a system font.
+- **Bundled SF Pro Display** typeface. The PDF uses Regular and Bold, resolved once on first export, and a font that fails to load is an error rather than a silent fallback to a system font. Medium is used by the UI only.
 
 ## How the money works
 
@@ -51,7 +53,7 @@ Both documents are laid out by a custom engine drawn directly on `Canvas` with A
 ## Storage
 
 - **SQLite through `SQLiteOpenHelper`**, with tables for recent notes, recent letters, customers and shipping agents.
-- **Non-destructive migrations.** Each schema upgrade only creates what is missing and never drops a saved document.
+- **Non-destructive migrations.** Each schema upgrade only creates a table that is missing, so it is safe to run again, and a downgrade leaves every table in place. No migration drops a saved document.
 - **Tolerant decoding.** Saved documents are stored as hand-encoded JSON; a missing or malformed field falls back to its default, so an older record never crashes the list.
 - **Saving without permissions.** Files go to the public Downloads folder through `MediaStore` on Android 10 and later, and to the app's own Downloads folder on older versions.
 - **A self-pruning share cache.** Shared files are served through a `FileProvider`, and anything older than 24 hours is removed.
@@ -77,7 +79,7 @@ Debitter shares one design system with two other apps of mine: warm paper surfac
 
 - A strict member ordering convention for every Kotlin file: properties sorted by type tier, then type, then name; functions ordered by call order.
 - No comments in source. Names, types and ordering carry the meaning.
-- ktlint formatting at a 240-column line width.
+- `.editorconfig` configures ktlint's `intellij_idea` style at a 240-column line width for the IDE; no ktlint plugin runs in the build.
 
 ## Project structure
 
@@ -88,7 +90,7 @@ app/src/main/java/com/example/debitter/
     data/           Presets, defaults, hand-written JSON, directory and recent-document repositories
     data/sources/   NoteDatabase
     pdf/            PdfLayout, LetterLayout, DebitNotePdfGenerator, RefundLetterPdfGenerator, PdfTypefaces, PdfExporter
-    ui/theme/       AppColors, AppSpacing, AppTextStyles, Theme
+    ui/theme/       AppColors, AppSpacing, AppTextStyles, DebitterTheme
     ui/components/  Shared design-system components
     ui/home/        Document type chooser
     ui/editor/      Debit note editor
@@ -97,7 +99,6 @@ app/src/main/java/com/example/debitter/
     ui/recent/      Saved documents
     ui/settings/    Customer and shipping agent directory
     util/           MoneyFormat, DateFormat, RecentDateFormat
-docs/spec.md        Original specification
 ```
 
 ## Building

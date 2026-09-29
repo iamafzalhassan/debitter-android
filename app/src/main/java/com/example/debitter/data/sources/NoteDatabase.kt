@@ -115,6 +115,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(context.applicationConte
     }
 
     private fun createLetters(db: SQLiteDatabase) {
+        if (db.hasTable(TABLE_LETTERS)) return
         db.execSQL(
             "CREATE TABLE $TABLE_LETTERS (" +
                 "$COLUMN_ID TEXT PRIMARY KEY, " +
@@ -126,6 +127,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(context.applicationConte
     }
 
     private fun createCustomers(db: SQLiteDatabase) {
+        if (db.hasTable(TABLE_CUSTOMERS)) return
         db.execSQL(
             "CREATE TABLE $TABLE_CUSTOMERS (" +
                 "$COLUMN_ID TEXT PRIMARY KEY, " +
@@ -151,6 +153,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(context.applicationConte
     private fun insertCustomer(db: SQLiteDatabase, row: CustomerRow) = db.upsertRow(TABLE_CUSTOMERS, COLUMN_ADDRESS_LINE to row.addressLine, COLUMN_CONTACT_LINE to row.contactLine, COLUMN_ID to row.id, COLUMN_NAME to row.name, COLUMN_TAGLINE to row.tagline)
 
     private fun createAgents(db: SQLiteDatabase) {
+        if (db.hasTable(TABLE_AGENTS)) return
         db.execSQL(
             "CREATE TABLE $TABLE_AGENTS (" +
                 "$COLUMN_ID TEXT PRIMARY KEY, " +
@@ -161,6 +164,8 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(context.applicationConte
             insertAgent(db, AgentRow(address = agent.address, id = UUID.randomUUID().toString(), name = agent.name))
         }
     }
+
+    private fun SQLiteDatabase.hasTable(table: String): Boolean = rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(table)).use { it.moveToFirst() }
 
     private fun insertAgent(db: SQLiteDatabase, row: AgentRow) = db.upsertRow(TABLE_AGENTS, COLUMN_ADDRESS to row.address, COLUMN_ID to row.id, COLUMN_NAME to row.name)
 
@@ -175,13 +180,7 @@ class NoteDatabase(context: Context) : SQLiteOpenHelper(context.applicationConte
         createAgents(db)
     }
 
-    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_AGENTS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_CUSTOMERS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_LETTERS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_NOTES")
-        onCreate(db)
-    }
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < LETTERS_VERSION) createLetters(db)
